@@ -1,11 +1,10 @@
-1) Change path in open_plotter.bat to where python script lives.
+This plotter will open a CSV file and plot the data into a graph using matplotlib.
+
+1) Change the path in open_plotter.bat to where the python script lives.
 2) Edit windows settings to open CSV file with the batch file.
 
-This plotter will open a CSV file and plot the data into a graph.
+If the columns name ends with ':0', it will be ignored from plotting.
+If the columns name ends with ':2', ':3' or ':4', the plotter will plot the data in that column on the secondary/tertiary/quaternary axis respectively.
+If the columns name is not formatted like the above, they will be plotted on the primary axis.
 
-If the column names is 'name:0', it will be ignored from plotting.
-If the column names have 'name:2' or 'name:3' or 'name:4', the plotter will plot that data on the secondary/tertiary/quaternary axis respectively.
-
-If the column names are not formatted like that, they will be plotted on the primary axis.
-
-You are able to select a specific line which will highlight, you can then move the mouse and the data for that highlighted line closest to the mouse will be displayed in the bottom right of the figure.
+You can select a specific line in the graph within the legend, which will be highlighted with a thicker stroke when selected. As you move the mouse, the value of the selected line closest to the mouse’s x-position will be displayed in the bottom right corner of the figure.
