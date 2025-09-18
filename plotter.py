@@ -514,9 +514,9 @@ def createPlot(filename):
         Toggles visibility for a group of lines and updates legend and button label.
 
         Args:
-            event:      The button click event.
-            group_key:  The key for the group ('primary', 'secondary', etc.).
-            lines_list: The list of Line2D objects for the group.
+            event:          The button click event.
+            group_key:      The key for the group ('primary', 'secondary', etc.).
+            lines_list:     The list of Line2D objects for the group.
             set_visibility: If not None, force visibility to this value.
         """
         nonlocal hide_flags
