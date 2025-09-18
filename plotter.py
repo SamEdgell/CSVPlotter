@@ -10,681 +10,586 @@ from matplotlib.lines import Line2D
 from matplotlib.widgets import Button
 
 
-"""
-Class that will open and plot data inside a given CSV file.
-"""
-class Plotter:
-    IGNORE_COLUMNS = []
-    PRIMARY_COLUMNS = []
-    SECONDARY_COLUMNS = []
-    TERTIARY_COLUMNS = []
-    QUATERNARY_COLUMNS = []
-    MARGIN_FACTOR = 1.05
-    selected_line = None
+MARGIN_FACTOR = 1.05
 
+
+def identifyAxes(columns):
     """
-    Identifies which axes each column should be on based on the ':' identifier in the CSV column name.
+    Identifies which axes each column should be on based on the ':' identifier.
 
-    @param columns: All columns to filter through.
+    Args:
+        columns: List of column names to sort through.
+
+    Returns:
+        Tuple of lists, each containing the indices of columns assigned to that axis.
     """
-    @staticmethod
-    def identifyAxes(columns):
-        for index, column in enumerate(columns):
-            if column.endswith(':0'):
-                Plotter.IGNORE_COLUMNS.append(index)
-            elif column.endswith(':2'):
-                Plotter.SECONDARY_COLUMNS.append(index)
-            elif column.endswith(':3'):
-                Plotter.TERTIARY_COLUMNS.append(index)
-            elif column.endswith(':4'):
-                Plotter.QUATERNARY_COLUMNS.append(index)
-            else:
-                Plotter.PRIMARY_COLUMNS.append(index)
+    ignore_columns = []
+    primary_columns = []
+    secondary_columns = []
+    tertiary_columns = []
+    quaternary_columns = []
+    for index, column in enumerate(columns):
+        if column.endswith(':0'):
+            ignore_columns.append(index)
+        elif column.endswith(':2'):
+            secondary_columns.append(index)
+        elif column.endswith(':3'):
+            tertiary_columns.append(index)
+        elif column.endswith(':4'):
+            quaternary_columns.append(index)
+        else:
+            primary_columns.append(index) # Default to primary.
+    print(f"\nIdentified Columns Below:")
+    print(f"Ignore: {ignore_columns}")
+    print(f"Primary: {primary_columns}")
+    print(f"Secondary: {secondary_columns}")
+    print(f"Tertiary: {tertiary_columns}")
+    print(f"Quaternary: {quaternary_columns}\n")
 
-        print(f"Primary Columns: {Plotter.PRIMARY_COLUMNS}")
-        print(f"Secondary Columns: {Plotter.SECONDARY_COLUMNS}")
-        print(f"Tertiary Columns: {Plotter.TERTIARY_COLUMNS}")
-        print(f"Quaternary Columns: {Plotter.QUATERNARY_COLUMNS}")
-        print(f"Ignore Columns: {Plotter.IGNORE_COLUMNS}")
+    return ignore_columns, primary_columns, secondary_columns, tertiary_columns, quaternary_columns
 
 
+def setupAxes(fig, filename):
     """
-    Sets up the figure axes.
+    Sets up the figure axes for plotting with up to four y-axes.
 
-    @param fig: The figure object.
-    @param filename: The name of the file being plotted, this is used as the figure title.
+    Args:
+        fig:        The matplotlib figure object.
+        filename:   The name of the file being plotted (used as the figure title).
 
-    @return 4 configured axes.
+    Returns:
+        Tuple of four configured axes.
     """
-    @staticmethod
-    def setupAxes(fig, filename):
-        ax1 = fig.add_subplot(111)
-        ax2 = ax1.twinx()
-        ax3 = ax1.twinx()
-        ax4 = ax1.twinx()
+    ax1 = fig.add_subplot(111)
+    ax2 = ax1.twinx()
+    ax3 = ax1.twinx()
+    ax4 = ax1.twinx()
 
-        # Adjust primary and secondary axes
-        ax2.yaxis.tick_left()
-        ax2.yaxis.set_label_position("left")
-        ax1.spines['left'].set_position(("outward", 0))
-        ax2.spines['left'].set_position(("outward", 80))
-        ax2.spines["left"].set_visible(True)
+    # Adjust primary and secondary axes.
+    ax2.yaxis.tick_left()
+    ax2.yaxis.set_label_position("left")
+    ax1.spines['left'].set_position(("outward", 0))
+    ax2.spines['left'].set_position(("outward", 80))
+    ax2.spines["left"].set_visible(True)
 
-        # Adjust tertionary and quaternary axes
-        ax3.spines['right'].set_position(('outward', 0))
-        ax4.spines['right'].set_position(('outward', 80))
-        ax3.spines['right'].set_visible(True)
-        ax4.spines['right'].set_visible(True)
+    # Adjust tertiary and quaternary axes.
+    ax3.spines['right'].set_position(('outward', 0))
+    ax4.spines['right'].set_position(('outward', 80))
+    ax3.spines['right'].set_visible(True)
+    ax4.spines['right'].set_visible(True)
 
-        # Set the gridlines and tick parameters
-        ax1.grid(True, linestyle='--', alpha=0.7)
-        ax1.xaxis.grid(True, which='major', linestyle='--', alpha=0.5)
-        ax1.yaxis.grid(True, linestyle='--', alpha=0.5)
-        ax1.xaxis.set_major_locator(ticker.MaxNLocator(nbins=20))
+    # Set the gridlines and tick parameters.
+    ax1.grid(True, linestyle='--', alpha=0.7)
+    ax1.xaxis.grid(True, which='major', linestyle='--', alpha=0.5)
+    ax1.yaxis.grid(True, linestyle='--', alpha=0.5)
+    ax1.xaxis.set_major_locator(ticker.MaxNLocator(nbins=20))
 
-        # Disable scientific notation
-        ax1.ticklabel_format(style='plain', axis='both', useOffset=False)
-        ax2.ticklabel_format(style='plain', axis='both', useOffset=False)
-        ax3.ticklabel_format(style='plain', axis='both', useOffset=False)
-        ax4.ticklabel_format(style='plain', axis='both', useOffset=False)
+    # Disable scientific notation.
+    ax1.ticklabel_format(style='plain', axis='both', useOffset=False)
+    ax2.ticklabel_format(style='plain', axis='both', useOffset=False)
+    ax3.ticklabel_format(style='plain', axis='both', useOffset=False)
+    ax4.ticklabel_format(style='plain', axis='both', useOffset=False)
 
-        # Set figure titles
-        ax1.set_title(os.path.split(filename)[1])
-        ax1.set_xlabel("Tick (Milliseconds)")
-        ax1.set_ylabel("Primary Axis Values")
-        ax2.set_ylabel("Secondary Axis Values")
-        ax3.set_ylabel("Tertiary Axis Values")
-        ax4.set_ylabel("Quaternary Axis Values")
+    # Set figure titles.
+    ax1.set_title(os.path.split(filename)[1])
+    ax1.set_xlabel("Tick (Milliseconds)")
+    ax1.set_ylabel("Primary Axis Values")
+    ax2.set_ylabel("Secondary Axis Values")
+    ax3.set_ylabel("Tertiary Axis Values")
+    ax4.set_ylabel("Quaternary Axis Values")
 
-        # Adjust the titles of the axes so they are a little closer to the labels
-        ax1.yaxis.set_label_coords(-0.025, 0.5)
-        ax2.yaxis.set_label_coords(-0.1, 0.5)
-        ax3.yaxis.set_label_coords(1.025, 0.5)
-        ax4.yaxis.set_label_coords(1.1, 0.5)
+    # Adjust the titles of the axes so they are a little closer to the labels.
+    ax1.yaxis.set_label_coords(-0.025, 0.5)
+    ax2.yaxis.set_label_coords(-0.1, 0.5)
+    ax3.yaxis.set_label_coords(1.025, 0.5)
+    ax4.yaxis.set_label_coords(1.1, 0.5)
 
-        return ax1, ax2, ax3, ax4
+    return ax1, ax2, ax3, ax4
 
 
+def calculateMaxAbsValues(df, columns, num_columns, ignore_cols, primary_cols, secondary_cols, tertiary_cols, quaternary_cols):
     """
     Calculates the maximum absolute values for the primary, secondary, tertiary, and quaternary axes. This aligns all axes at the zero point.
 
-    @param df: The data frame object.
-    @param column_names: The names of all columns with data to plot.
-    @param num_columns: List of column indices.
+    Args:
+        df:                 The pandas DataFrame object.
+        columns:            List of all column names with data to plot.
+        num_columns:        List of column indices.
+        ignore_cols:        List of column indices to ignore from plotting.
+        primary_cols:       List of column indices for the primary axis.
+        secondary_cols:     List of column indices for the secondary axis.
+        tertiary_cols:      List of column indices for the tertiary axis.
+        quaternary_cols:    List of column indices for the quaternary axis.
 
-    @return max absolute values for all axes.
+    Returns:
+        Tuple of max absolute values for all axes.
     """
-    @staticmethod
-    def calculateMaxAbsValues(df, column_names, num_columns):
-        max_value_primary = 0
-        max_value_secondary = 0
-        max_value_tertiary = 0
-        max_value_quaternary = 0
+    max_vals = {'primary': 0, 'secondary': 0, 'tertiary': 0, 'quaternary': 0}
 
-        for x in num_columns:
-            if x not in Plotter.IGNORE_COLUMNS:
-                column_name = column_names[x]
-                max_axis_value = max(abs(df[column_name].max()), abs(df[column_name].min()))
-                if x in Plotter.SECONDARY_COLUMNS:
-                    max_value_secondary = max(max_value_secondary, max_axis_value)
-                elif x in Plotter.TERTIARY_COLUMNS:
-                    max_value_tertiary = max(max_value_tertiary, max_axis_value)
-                elif x in Plotter.QUATERNARY_COLUMNS:
-                    max_value_quaternary = max(max_value_quaternary, max_axis_value)
+    for x in num_columns:
+        if x not in ignore_cols:
+            column_name = columns[x]
+            try:
+                # Ensure column is numeric before calculating max/min.
+                if pd.api.types.is_numeric_dtype(df[column_name]):
+                     max_axis_value = max(abs(df[column_name].max()), abs(df[column_name].min()))
                 else:
-                    max_value_primary = max(max_value_primary, max_axis_value)
+                     print(f"Non-numeric data in {column_name}. Skipping max value.", file=sys.stderr)
+                     continue
+            except Exception as e:
+                 print(f"Error calculating max value for {column_name} - {e}", file=sys.stderr)
+                 continue
 
-        return max_value_primary, max_value_secondary, max_value_tertiary, max_value_quaternary
+            if x in secondary_cols: max_vals['secondary'] = max(max_vals['secondary'], max_axis_value)
+            elif x in tertiary_cols: max_vals['tertiary'] = max(max_vals['tertiary'], max_axis_value)
+            elif x in quaternary_cols: max_vals['quaternary'] = max(max_vals['quaternary'], max_axis_value)
+            elif x in primary_cols: max_vals['primary'] = max(max_vals['primary'], max_axis_value)
 
-
-    """
-    Sets the limits for the columns on the y-axis. This allows all columns to line up at the zero point.
-
-    @param ax1: The primary axis.
-    @param ax2: The secondary axis.
-    @param ax3: The tertiary axis.
-    @param ax4: The quaternary axis.
-    @param max_abs_values: The maximum absolute values for the primary, secondary, tertiary, and quaternary columns.
-    """
-    @staticmethod
-    def setYLimits(ax1, ax2, ax3, ax4, max_abs_values):
-        max_abs_value_primary, max_abs_value_secondary, max_abs_value_tertiary, max_abs_value_quaternary = max_abs_values
-        min_range = 0.1
-
-        # Primary axis
-        if max_abs_value_primary > 0:
-            ax1.set_ylim(-max_abs_value_primary * Plotter.MARGIN_FACTOR, max_abs_value_primary * Plotter.MARGIN_FACTOR)
-        else:
-            ax1.set_ylim(-min_range, min_range)
-
-        # Secondary axis
-        if max_abs_value_secondary > 0:
-            ax2.set_ylim(-max_abs_value_secondary * Plotter.MARGIN_FACTOR, max_abs_value_secondary * Plotter.MARGIN_FACTOR)
-        else:
-            ax2.set_ylim(-min_range, min_range)
-
-        # Tertiary axis
-        if max_abs_value_tertiary > 0:
-            ax3.set_ylim(-max_abs_value_tertiary * Plotter.MARGIN_FACTOR, max_abs_value_tertiary * Plotter.MARGIN_FACTOR)
-        else:
-            ax3.set_ylim(-min_range, min_range)
-
-        # Quaternary axis
-        if max_abs_value_quaternary > 0:
-            ax4.set_ylim(-max_abs_value_quaternary * Plotter.MARGIN_FACTOR, max_abs_value_quaternary * Plotter.MARGIN_FACTOR)
-        else:
-            ax4.set_ylim(-min_range, min_range)
+    return max_vals['primary'], max_vals['secondary'], max_vals['tertiary'], max_vals['quaternary']
 
 
+def plotDataOnAxis(ax1, ax2, ax3, ax4, df, columns, num_columns, column_colours, ignore_cols, primary_cols, secondary_cols, tertiary_cols, quaternary_cols):
     """
     Plots the data for each axis.
 
-    @param ax1: The primary axis.
-    @param ax2: The secondary axis.
-    @param ax3: The tertiary axis.
-    @param ax4: The quaternary axis.
-    @param df: The data frame.
-    @param columns: The total columns with data to plot.
-    @param num_columns: List of column indices.
-    @param column_colours: Dictionary mapping column indices to specific colours.
+    Args:
+        ax1:                The primary axis.
+        ax2:                The secondary axis.
+        ax3:                The tertiary axis.
+        ax4:                The quaternary axis.
+        df:                 The pandas DataFrame.
+        columns:            List of all column names with data to plot.
+        num_columns:        List of column indices.
+        column_colours:     Dictionary mapping column indices to specific colours.
+        ignore_cols:        List of column indices to ignore from plotting.
+        primary_cols:       List of column indices for the primary axis.
+        secondary_cols:     List of column indices for the secondary axis.
+        tertiary_cols:      List of column indices for the tertiary axis.
+        quaternary_cols:    List of column indices for the quaternary axis.
 
-    @return primary, secondary, tertiary, and quaternary lines.
+    Returns:
+        Tuple of lists of lines created for each axis.
     """
-    @staticmethod
-    def plotDataOnAxis(ax1, ax2, ax3, ax4, df, columns, num_columns, column_colours):
-        primary_lines = []
-        secondary_lines = []
-        tertiary_lines = []
-        quaternary_lines = []
+    primary_lines = []
+    secondary_lines = []
+    tertiary_lines = []
+    quaternary_lines = []
+    tickMs = columns[1]
 
-        for x in num_columns:
-            if x not in Plotter.IGNORE_COLUMNS:
-                column_name = columns[x]
-                line_colour = column_colours.get(x, 'black') # Default line colour to black if it does not exist in the column_colour dictionary
-                label = column_name.rsplit(':', 1)[0] # Strip the axes suffix from the column name for the legend
-                if x in Plotter.SECONDARY_COLUMNS:
-                    line, = ax2.plot(df[columns[1]], df[column_name], label=label, linestyle=':', color=line_colour)
+    for x in num_columns:
+        if x not in ignore_cols:
+            column_name = columns[x]
+
+            # Ensure data column is valid and numeric before plotting.
+            if column_name not in df.columns or not pd.api.types.is_numeric_dtype(df[column_name]):
+                 print(f"Invalid/Non-numeric data in {column_name}", file=sys.stderr)
+                 continue
+
+            line_colour = column_colours.get(x, 'black') # Default line colour to black if it does not exist in the column_colour dictionary.
+            label = column_name.rsplit(':', 1)[0] # Strip the axes suffix from the column name for the legend.
+            try:
+                if x in secondary_cols:
+                    line, = ax2.plot(df[tickMs], df[column_name], label=label, linestyle=':', color=line_colour)
                     secondary_lines.append(line)
-                elif x in Plotter.TERTIARY_COLUMNS:
-                    line, = ax3.plot(df[columns[1]], df[column_name], label=label, linestyle='--', color=line_colour)
+                elif x in tertiary_cols:
+                    line, = ax3.plot(df[tickMs], df[column_name], label=label, linestyle='--', color=line_colour)
                     tertiary_lines.append(line)
-                elif x in Plotter.QUATERNARY_COLUMNS:
-                    line, = ax4.plot(df[columns[1]], df[column_name], label=label, color=line_colour)
+                elif x in quaternary_cols:
+                    line, = ax4.plot(df[tickMs], df[column_name], label=label, color=line_colour)
                     quaternary_lines.append(line)
                 else:
-                    # Plot primary axis.
-                    line, = ax1.plot(df[columns[1]], df[column_name], label=label, color=line_colour)
+                    # Plot on primary axis.
+                    line, = ax1.plot(df[tickMs], df[column_name], label=label, color=line_colour)
                     primary_lines.append(line)
+            except Exception as e:
+                 print(f"Error plotting column: {column_name} - {e}", file=sys.stderr)
 
-        return primary_lines, secondary_lines, tertiary_lines, quaternary_lines
+    return primary_lines, secondary_lines, tertiary_lines, quaternary_lines
 
 
+def getLegendProperties():
     """
     Returns the legend properties for the plot.
+
+    Returns:
+        dict: Dictionary of legend property settings.
     """
-    @staticmethod
-    def getLegendProperties():
-        return {'fontsize': 9, 'framealpha': 0.8, 'edgecolor': '#666666', 'handlelength': 4, 'handleheight': 1}
+    return {'fontsize': 9, 'framealpha': 0.8, 'edgecolor': '#666666', 'handlelength': 4, 'handleheight': 1}
 
 
+def customCoordFormatter(x, selected_line):
     """
-    Function that traces the mouse cursor x position when hovering over a selected line and tries to identify the value of the closest point on the selected line.
+    Traces the mouse cursor x position when hovering over a selected line and identifies the value of the closest point.
 
-    @param x: The x-coordinate of the mouse cursor.
-    @return The formatted string to display in the text box.
+    Args:
+        x:              The x-coordinate of the mouse cursor.
+        selected_line:  The currently selected Line2D object.
+
+    Returns:
+        The formatted string to display in the text box.
     """
-    @staticmethod
-    def custom_coord_formatter(x):
-        # Only consider the selected line if there is one
-        if Plotter.selected_line and Plotter.selected_line.get_visible():
-            try:
-                x_data = Plotter.selected_line.get_xdata()
-                y_data = Plotter.selected_line.get_ydata()
+    # Only consider the selected line if there is one.
+    if selected_line and selected_line.get_visible():
+        try:
+            x_data = selected_line.get_xdata()
+            y_data = selected_line.get_ydata()
 
-                if len(x_data) > 0:
-                    # Find closest point based on x-coordinate
-                    closest_index = min(range(len(x_data)), key=lambda i: abs(x_data[i] - x))
+            if len(x_data) > 0:
+                # Find closest point based on x-coordinate.
+                closest_index = min(range(len(x_data)), key=lambda i: abs(x_data[i] - x))
 
-                    # Get data point coordinates
-                    point_x = x_data[closest_index]
-                    point_y = y_data[closest_index]
+                # Get data point coordinates.
+                point_y = y_data[closest_index]
 
-                    label = Plotter.selected_line.get_label().strip().replace('|', '').replace('\n', ' ')
+                label = selected_line.get_label().strip().replace('|', '').replace('\n', ' ')
 
-                    if label == "currentPosition" or label == "targetPosition":
-                        return f"Line: {label}\nValue: {int(point_y)} m°"
-                    elif label == "currentSpeed" or label == "targetSpeed":
-                        return f"Line: {label}\nValue: {int(point_y)} m°/s"
-                    elif label == "output":
-                        return f"Line: {label}\nValue: {int(point_y)} % Duty Cycle"
-                    elif label == "current":
-                        return f"Line: {label}\nValue: {int(point_y)} mA"
-                    else:
-                        return f"Line: {label}\nValue: {int(point_y)}"
-            except Exception as e:
-                print(f"Error processing selected line: {e}")
+                unit = ""
+                # Use integer formatting only for true ints, else float formatting
+                if isinstance(point_y, int) or (isinstance(point_y, float) and point_y.is_integer()):
+                    value_str = f"{int(point_y):d}"
+                else:
+                    value_str = f"{point_y:.2f}"
 
-        # Return default string
-        return "Click a line to view data"
+                if "Position" in label: unit = ""
+                elif "Speed" in label: unit = ""
+                elif "output" in label: unit = " % Duty Cycle"
+                elif "current" in label: unit = " mA"
+
+                return f"Line: {label}\nValue: {value_str}{unit}"
+
+        except Exception as e:
+            print(f"Formatter error: {e}", file=sys.stderr)
+
+    # Return default string.
+    return "Click a line to view live data"
 
 
+def createPlot(filename):
     """
-    Entry function. Plots data in csv file. The order of code in this function is very important.
+    Opens filename as a dataframe and plots it. The order of code in this function is very important.
 
-    @param df: The csv data frame.
-    @param filename: The name of the file.
+    Args:
+        filename: The name of the file.
     """
-    @staticmethod
-    def plotData(df, filename):
-        print(f"Plotting data from {filename}")
+    try:
+        df = pd.read_csv(filename)
+    except FileNotFoundError:
+        print(f"\nPlotting file not found: {filename}\n", file=sys.stderr)
+        return
+    except Exception as e:
+        print(f"\nError plotting {filename}: {e}\n", file=sys.stderr)
+        return
 
-        # Gather column names with data to plot
-        columns = df.columns.values.tolist()
-        num_columns = [i for i in range(len(columns))]
-        for x in num_columns:
-            print(f"{df[columns[num_columns[x]]].name} = {str(x)}")
+    print(f"\nPlotting file: {filename}\n")
 
-        # Work out what axes each column should be on
-        Plotter.identifyAxes(columns)
+    # Gather column names with data to plot.
+    columns = df.columns.values.tolist()
+    num_columns = list(range(len(columns)))
+    print(f"Index/Column Name Below:")
+    for x in num_columns:
+        print(f"{x}) {columns[x].strip()}")
 
-        # Adjust the size of figure and margins
-        fig = plt.figure(figsize=(17, 9.5))
-        fig.subplots_adjust(top=0.95, left=0.1)
-        ax1, ax2, ax3, ax4 = Plotter.setupAxes(fig, filename)
+    # Work out what axes each column should be on.
+    ignore_cols, primary_cols, secondary_cols, tertiary_cols, quaternary_cols = identifyAxes(columns)
 
-        # Colour palette for each plot line. If you want to customise another column, you must add in its ID and colour.
-        column_colours = {
-            2: sns.color_palette('tab20')[2],    # Orange - Current Position
-            3: sns.color_palette('tab20')[4],    # Green - Target Position
-            4: sns.color_palette('tab20')[2],    # Orange - Current Speed
-            5: sns.color_palette('tab20')[4],    # Green - Target Speed
-            6: sns.color_palette('tab20')[6],    # Red - Error
-            7: sns.color_palette('tab20')[18],   # Light Blue - Integral
-            9: sns.color_palette('tab20')[6],    # Red - Speed Error
-            10: sns.color_palette('tab20')[18],  # Light Blue - Integral Speed
-            12: sns.color_palette('tab20b')[2],  # Purple - P Term
-            13: sns.color_palette('tab20b')[6],  # Green - I Term
-            14: sns.color_palette('tab20b')[10], # Gold - D Term
-            15: sns.color_palette('tab20b')[18], # Pink - F Term
-            16: sns.color_palette('tab20c')[1],  # Blue - P Speed Term
-            17: sns.color_palette('tab20c')[5],  # Orange - I Speed Term
-            18: sns.color_palette('tab20c')[9],  # Green - D Speed Term
-            19: sns.color_palette('Set1')[6],    # Brown - Output
-            20: sns.color_palette('Dark2')[3],   # Purple - Current
-        }
+    # Adjust the figure and margins.
+    fig = plt.figure(figsize=(17, 9.5))
+    fig.subplots_adjust(top=0.95, left=0.1)
+    ax1, ax2, ax3, ax4 = setupAxes(fig, filename)
 
-        # Calculate the max values and set the limits of the Y axes, this align zero with all axes
-        max_abs_values = Plotter.calculateMaxAbsValues(df, columns, num_columns)
-        Plotter.setYLimits(ax1, ax2, ax3, ax4, max_abs_values)
+    # Colour palette for each plot line. If you want to customise another column, you must add in its ID and colour, otherwise it will be set to the default colour.
+    column_colours = {
+        2: sns.color_palette('tab20')[2],    # Orange - Current Position
+        3: sns.color_palette('tab20')[4],    # Green - Target Position
+        4: sns.color_palette('tab20')[2],    # Orange - Current Speed
+        5: sns.color_palette('tab20')[4],    # Green - Target Speed
+        6: sns.color_palette('tab20')[6],    # Red - Error
+        7: sns.color_palette('tab20')[18],   # Light Blue - Integral
+        9: sns.color_palette('tab20')[6],    # Red - Speed Error
+        10: sns.color_palette('tab20')[18],  # Light Blue - Integral Speed
+        12: sns.color_palette('tab20b')[2],  # Purple - P Term
+        13: sns.color_palette('tab20b')[6],  # Green - I Term
+        14: sns.color_palette('tab20b')[10], # Gold - D Term
+        15: sns.color_palette('tab20b')[18], # Pink - F Term
+        16: sns.color_palette('tab20c')[1],  # Blue - P Speed Term
+        17: sns.color_palette('tab20c')[5],  # Orange - I Speed Term
+        18: sns.color_palette('tab20c')[9],  # Green - D Speed Term
+        19: sns.color_palette('Set1')[6],    # Brown - Output
+        20: sns.color_palette('Dark2')[3],   # Purple - Current
+    }
 
-        # Get the plot lines for each axis
-        primary_lines, secondary_lines, tertiary_lines, quaternary_lines = Plotter.plotDataOnAxis(ax1, ax2, ax3, ax4, df, columns, num_columns, column_colours)
+    # Calculate the max values and set the limits of the Y axes, this align zero with all axes.
+    max_abs_values = calculateMaxAbsValues(df, columns, num_columns, ignore_cols, primary_cols, secondary_cols, tertiary_cols, quaternary_cols)
 
-        # Spaces out the individual axes plot lines
-        spacer1_line = Line2D([0], [0], color='white', lw=0, label=' ')
-        spacer2_line = Line2D([0], [0], color='white', lw=0, label=' ')
-        spacer3_line = Line2D([0], [0], color='white', lw=0, label=' ')
+    # Set the limits for Y axis for all axes, this aligns all columns to the zero point.
+    min_range = 0.1
+    ax1.set_ylim(-max(max_abs_values[0] * MARGIN_FACTOR, min_range), max(max_abs_values[0] * MARGIN_FACTOR, min_range))
+    ax2.set_ylim(-max(max_abs_values[1] * MARGIN_FACTOR, min_range), max(max_abs_values[1] * MARGIN_FACTOR, min_range))
+    ax3.set_ylim(-max(max_abs_values[2] * MARGIN_FACTOR, min_range), max(max_abs_values[2] * MARGIN_FACTOR, min_range))
+    ax4.set_ylim(-max(max_abs_values[3] * MARGIN_FACTOR, min_range), max(max_abs_values[3] * MARGIN_FACTOR, min_range))
 
-        # Combine all lines and labels
-        all_lines = primary_lines + [spacer1_line] + secondary_lines + [spacer2_line] + tertiary_lines + [spacer3_line] + quaternary_lines
-        all_labels = [line.get_label() for line in all_lines]
+    # Get the plot lines for each axis.
+    primary_lines, secondary_lines, tertiary_lines, quaternary_lines = plotDataOnAxis(ax1, ax2, ax3, ax4, df, columns, num_columns, column_colours,
+        ignore_cols, primary_cols, secondary_cols, tertiary_cols, quaternary_cols
+    )
 
-        # Define all_axes to include the axes for each line
-        all_axes = [ax1] * len(primary_lines) + [None] + [ax2] * len(secondary_lines) + [None] + [ax3] * len(tertiary_lines) + [None] + [ax4] * len(quaternary_lines)
+    # Spaces out the individual axes plot lines.
+    spacer1_line = Line2D([0], [0], color='white', lw=0, label=' ')
+    spacer2_line = Line2D([0], [0], color='white', lw=0, label=' ')
+    spacer3_line = Line2D([0], [0], color='white', lw=0, label=' ')
 
-        # Create the legend
-        legend_properties = Plotter.getLegendProperties()
-        legend = fig.legend(all_lines, all_labels, fancybox=True, shadow=True, bbox_to_anchor=(0.20, 0.52), **legend_properties)
-        legend.set_draggable(True)
+    # Combine all lines and labels.
+    all_lines = primary_lines + [spacer1_line] + secondary_lines + [spacer2_line] + tertiary_lines + [spacer3_line] + quaternary_lines
+    all_labels = [line.get_label() for line in all_lines]
 
-        # Make legend interactive
-        lined = {}
-        for legline, legtext, origline in zip(legend.get_lines(), legend.get_texts(), all_lines):
+    # Define all_axes to include the axes for each line.
+    all_axes = ([ax1] * len(primary_lines) + [None] + [ax2] * len(secondary_lines) + [None] + [ax3] * len(tertiary_lines) + [None] + [ax4] * len(quaternary_lines))
+
+    # Create the legend - Call helper directly.
+    legend_properties = getLegendProperties()
+    legend = fig.legend(all_lines, all_labels, fancybox=True, shadow=True, bbox_to_anchor=(0.20, 0.52), **legend_properties)
+    legend.set_draggable(True)
+
+    # Make legend interactive.
+    lined = {}
+    for legline, legtext, origline in zip(legend.get_lines(), legend.get_texts(), all_lines):
+        # Check if origline is valid before setting picker.
+        if isinstance(origline, Line2D):
             legline.set_picker(True)
             legtext.set_picker(True)
             lined[legline] = origline
             lined[legtext] = origline
 
-        #----------------------------------------------- ON PICK -----------------------------------------------
+
+    #----------------------------------------------- ON PICK -----------------------------------------------
+
+
+    def onPick(event):
         """
         Event handler for picking legend items to show/hide corresponding plot lines.
-
         This function toggles the visibility of the plot line associated with the clicked legend item.
         It also adjusts the transparency of the legend entry to indicate visibility.
         """
-        def onPick(event):
-            clicked_object = event.artist
-            if isinstance(clicked_object, Legend):
-                return
-            else:
-                origline = lined[clicked_object]
-                visible = not origline.get_visible()
-                origline.set_visible(visible)
-                for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
-                    if lined[legline] == origline:
-                        legline.set_alpha(1.0 if visible else 0.2)
-                        legtext.set_alpha(1.0 if visible else 0.2)
-                fig.canvas.draw()
+        clicked_object = event.artist
+        if isinstance(clicked_object, Legend):
+            return
+        else:
+            origline = lined[clicked_object]
+            visible = not origline.get_visible()
+            origline.set_visible(visible)
+            for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
+                if lined[legline] == origline:
+                    legline.set_alpha(1.0 if visible else 0.2)
+                    legtext.set_alpha(1.0 if visible else 0.2)
+            fig.canvas.draw()
 
-        # Connect the onPick event
-        fig.canvas.mpl_connect('pick_event', onPick)
+    # Connect the onPick event.
+    fig.canvas.mpl_connect('pick_event', onPick)
 
-        #----------------------------------------------- LINE VALUE BOX -----------------------------------------------
 
-        text_display = fig.text(0.825, 0.02, "Click a line to view data",
-                            ha='center', va='bottom',
-                            bbox=dict(facecolor='white', alpha=0.9, edgecolor='red', boxstyle='round,pad=0.5'),
-                            fontsize=12)
+    #----------------------------------------------- LINE VALUE BOX -----------------------------------------------
 
-        def onHover(event):
-            if event.inaxes:
-                # Only update if we have a selected line
-                if Plotter.selected_line and Plotter.selected_line.get_visible():
-                    x = event.xdata
-                    string = Plotter.custom_coord_formatter(x)
+
+    selected_line = None
+    text_display = fig.text(0.825, 0.02, "Click a line to view live data",
+                        ha='center', va='bottom',
+                        bbox=dict(facecolor='white', alpha=0.9, edgecolor='red', boxstyle='round,pad=0.5'),
+                        fontsize=12)
+
+    hide_flags = {'all': False, 'primary': False, 'secondary': False, 'tertiary': False, 'quaternary': False}
+    button_refs = {}
+
+
+    def onHover(event):
+        """
+        Event handler for mouse movement over the plot area. Updates the text box with the value at the cursor for the selected line.
+        """
+        if event.inaxes and text_display:
+            # Only update if we have a selected line.
+            if selected_line and selected_line.get_visible():
+                x = event.xdata
+                if x is not None: # Check if xdata is valid.
+                    string = customCoordFormatter(x, selected_line)
                     text_display.set_text(string)
                     fig.canvas.draw_idle()
 
-        # Connect the onHover event
-        fig.canvas.mpl_connect('motion_notify_event', onHover)
 
-        #----------------------------------------------- ON CLICK -----------------------------------------------
+    # Connect the onHover event.
+    fig.canvas.mpl_connect('motion_notify_event', onHover)
 
+
+    #----------------------------------------------- ON CLICK -----------------------------------------------
+
+
+    def onClick(event):
         """
         Click event.
-        Finds the closest point on a line to the click and selects it. Locates the data for chosen line and mouse cursor location and updates text value box
+        Finds the closest point on a line to the click and selects it.
+        Locates the data for the chosen line and mouse cursor location and updates the text value box.
         """
-        def onClick(event):
-            # First check if we're inside one of the plot axes
-            if event.inaxes in [ax1, ax2, ax3, ax4]:
-                # Check if the click was inside the legend's bbox
-                if legend.get_window_extent().contains(event.x, event.y):
-                    # Click is inside legend, do nothing
-                    return
+        nonlocal selected_line
+        # First check if we're inside one of the plot axes.
+        if event.inaxes in [ax1, ax2, ax3, ax4]:
+            # Check if the click was inside the legend's bbox.
+            if legend and legend.get_window_extent().contains(event.x, event.y):
+                # Click is inside legend, do nothing.
+                return
 
-                # Get the data coordinates of the click
-                x = event.xdata
-                y = event.ydata
+            # Get the data coordinates of the click.
+            x = event.xdata
+            y = event.ydata
+            if x is None or y is None: return # Click outside data area.
 
-                # Convert click point to display coordinates (pixels)
-                click_display = event.inaxes.transData.transform((x, y))
+            # Convert click point to display coordinates (pixels).
+            click_display = event.inaxes.transData.transform((x, y))
 
-                # Find the closest line to the click
-                min_distance = float('inf')
-                closest_line = None
+            # Find the closest line to the click.
+            min_distance = float('inf')
+            closest_line = None
+            click_tolerance = 10 # pixels.
 
-                for line, ax in zip(all_lines, all_axes):
-                    # Skip spacer lines or invisible lines
-                    if ax is None or not line.get_visible():
-                        continue
+            for line, ax in zip(all_lines, all_axes):
+                # Skip spacer lines or invisible lines.
+                if ax is None or not isinstance(line, Line2D) or not line.get_visible():
+                    continue
 
-                    try:
-                        # Get the data from the line
-                        x_data = line.get_xdata()
-                        y_data = line.get_ydata()
+                try:
+                    # Get the data from the line.
+                    x_data, y_data = line.get_data()
 
-                        if len(x_data) > 0:
-                            # Find closest x-coordinate point on this line
-                            closest_index = min(range(len(x_data)), key=lambda i: abs(x_data[i] - x))
-                            point_x = x_data[closest_index]
-                            point_y = y_data[closest_index]
+                    if len(x_data) > 0:
+                        # Pixel distance calculation (more accurate for picking).
+                        display_coords = ax.transData.transform(list(zip(x_data, y_data)))
+                        distances = ((display_coords[:, 0] - click_display[0])**2 +
+                                     (display_coords[:, 1] - click_display[1])**2)**0.5
+                        current_min_dist = distances.min()
 
-                            # Convert data point to display coordinates (pixels)
-                            display_coords = ax.transData.transform((point_x, point_y))
+                        if current_min_dist < min_distance:
+                            min_distance = current_min_dist
+                            closest_line = line
+                except Exception as e:
+                    print(f"Error finding closest point {e}", file=sys.stderr)
+                    continue
 
-                            # Calculate distance in pixel space (screen coordinates)
-                            distance = ((display_coords[0] - click_display[0])**2 +
-                                        (display_coords[1] - click_display[1])**2)**0.5
-
-                            if distance < min_distance:
-                                min_distance = distance
-                                closest_line = line
-                    except Exception as e:
-                        print(f"Error finding closest point: {e}")
-                        continue
-
-                # Check if we're clicking on the already selected line
-                if Plotter.selected_line and Plotter.selected_line.get_label() == closest_line.get_label():
-                    Plotter.selected_line = None
-
-                    # Reset all lines to normal width
-                    for line in all_lines:
-                        if isinstance(line, Line2D) and line.get_visible():
-                            line.set_linewidth(1.5)
-
-                    # Reset all legend text to normal weight
-                    for legtext in legend.get_texts():
-                        legtext.set_color('black')
-
-                    # Clear the text box
-                    text_display.set_text("Click a line to view data")
+            newly_selected = None # Track if a new line was just selected.
+            # Check if we're clicking near a line
+            if closest_line and min_distance < click_tolerance:
+                 # Check if clicking the already selected line to deselect.
+                if selected_line == closest_line:
+                    selected_line = None # Deselect.
                 else:
-                    # Update the selected line
-                    Plotter.selected_line = closest_line
+                    # Select the new closest line.
+                    selected_line = closest_line
+                    newly_selected = selected_line # Mark as newly selected.
+            elif selected_line: # Clicked away from any line, deselect if one was selected.
+                 selected_line = None
 
-                    # Reset all line widths
-                    for line in all_lines:
-                        if isinstance(line, Line2D) and line.get_visible():
-                            line.set_linewidth(1.5)
+            # Update visuals (line width, legend text colour).
+            for line in all_lines:
+                if isinstance(line, Line2D) and line.get_visible():
+                    line.set_linewidth(3.0 if line == selected_line else 1.5)
 
-                    # Reset all legend text to normal weight
-                    for legtext in legend.get_texts():
-                        legtext.set_color('black')
+            for legtext in legend.get_texts():
+                 # Check if the text object is in our mapping before getting label.
+                 legtext.set_color('red' if legtext in lined and lined[legtext] == selected_line else 'black')
 
-                    # Make the selected line thicker
-                    if Plotter.selected_line:
-                        Plotter.selected_line.set_linewidth(3.0)
+            # Update text box.
+            if newly_selected: # Update text immediately on new selection.
+                 string = customCoordFormatter(x, newly_selected) # Use newly selected line.
+                 text_display.set_text(string)
+            elif selected_line is None: # Deselected or clicked away.
+                 text_display.set_text("Click a line to view live data")
 
-                        # Find and highlight selected line text in the legend
-                        selected_label = Plotter.selected_line.get_label()
-                        for i, legline in enumerate(legend.get_lines()):
-                            if i < len(legend.get_texts()) and lined[legline].get_label() == selected_label:
-                                legend.get_texts()[i].set_color('red')
-                                break
+            fig.canvas.draw_idle()  # Refresh figure.
 
-                fig.canvas.draw_idle()  # Refresh figure
+    # Connect the click handler.
+    fig.canvas.mpl_connect('button_press_event', onClick)
 
-        # Connect the click handler
-        fig.canvas.mpl_connect('button_press_event', onClick)
 
-        #----------------------------------------------- SHOW/HIDE BUTTON -----------------------------------------------
+    #----------------------------------------------- SHOW/HIDE BUTTONS -----------------------------------------------
 
-        # Create a button to show/hide all lines
-        show_hide_button = plt.axes([0.01, 0.01, 0.08, 0.05])
-        button_show_hide = Button(show_hide_button, 'Hide All')
-        hide_all_lines = False
 
+    def toggleVisibilityGroup(event, group_key, lines_list, set_visibility=None):
         """
-        Button event.
-        Toggles the visibility of all selected lines/axes.
+        Toggles visibility for a group of lines and updates legend and button label.
+
+        Args:
+            event:      The button click event.
+            group_key:  The key for the group ('primary', 'secondary', etc.).
+            lines_list: The list of Line2D objects for the group.
+            set_visibility: If not None, force visibility to this value.
         """
-        def toggleShowHideAll(event):
-            nonlocal hide_all_lines
-            hide_all_lines = not hide_all_lines
-            button_show_hide.label.set_text('Show All' if hide_all_lines else 'Hide All')
+        nonlocal hide_flags
+        # Determine current visibility by checking the first line (if any)
+        current_visible = lines_list and lines_list[0].get_visible()
+        # If set_visibility is provided, use it; otherwise, toggle
+        new_visibility = set_visibility if set_visibility is not None else not current_visible
+        new_alpha = 1.0 if new_visibility else 0.2
+        new_button_text = f"Hide {group_key.capitalize()}" if new_visibility else f"Show {group_key.capitalize()}"
 
-            if hide_all_lines:
-                if not hide_primary_lines:
-                    toggleShowHidePrimary(event)
-                if not hide_secondary_lines:
-                    toggleShowHideSecondary(event)
-                if not hide_tertiary_lines:
-                    toggleShowHideTertiary(event)
-                if not hide_quaternary_lines:
-                    toggleShowHideQuaternary(event)
-            else:
-                if hide_primary_lines:
-                    toggleShowHidePrimary(event)
-                if hide_secondary_lines:
-                    toggleShowHideSecondary(event)
-                if hide_tertiary_lines:
-                    toggleShowHideTertiary(event)
-                if hide_quaternary_lines:
-                    toggleShowHideQuaternary(event)
+        for line in lines_list:
+            if isinstance(line, Line2D):
+                line.set_visible(new_visibility)
+                # Update legend items.
+                for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
+                    if legline in lined and lined[legline] == line: legline.set_alpha(new_alpha)
+                    if legtext in lined and lined[legtext] == line: legtext.set_alpha(new_alpha)
 
-            fig.canvas.draw_idle()
+        hide_flags[group_key] = not new_visibility  # True means hidden, False means visible
+        if group_key in button_refs: button_refs[group_key].label.set_text(new_button_text)
+        fig.canvas.draw_idle()
 
-        # Connect show/hide button event
-        button_show_hide.on_clicked(toggleShowHideAll)
 
-        #----------------------------------------------- PRIMARY BUTTON -----------------------------------------------
-
-        # Create a button to show/hide primary lines
-        primary_show_hide_button = plt.axes([0.10, 0.01, 0.08, 0.05])  # Adjust the position to place it next to the show/hide all button
-        button_primary_show_hide = Button(primary_show_hide_button, 'Hide Primary')
-        hide_primary_lines = False
-
+    def toggleShowHideAll(event):
         """
-        Button event.
-        Toggles the visibility of primary plot lines and adjusts the transparency of the corresponding legend entries.
+        Toggles visibility for all groups and updates the 'Show All/Hide All' button label.
         """
-        def toggleShowHidePrimary(event):
-            nonlocal hide_primary_lines
-            if hide_primary_lines:
-                # Now show primary lines
-                for line in primary_lines:
-                    line.set_visible(True)
-                    for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
-                        if lined[legline] == line:
-                            # Change transparency of line and text to visible
-                            legline.set_alpha(1.0)
-                            legtext.set_alpha(1.0)
-                button_primary_show_hide.label.set_text('Hide Primary')
-            else:
-                # Now hide primary lines
-                for line in primary_lines:
-                    line.set_visible(False)
-                    for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
-                        if lined[legline] == line:
-                            # Change transparency of line and text to barely visible
-                            legline.set_alpha(0.2)
-                            legtext.set_alpha(0.2)
-                button_primary_show_hide.label.set_text('Show Primary')
-            hide_primary_lines = not hide_primary_lines
-            fig.canvas.draw_idle()
+        nonlocal hide_flags
+        hide_flags['all'] = not hide_flags['all']
+        if 'all' in button_refs:
+            button_refs['all'].label.set_text('Show All' if hide_flags['all'] else 'Hide All')
 
-        # Connect show/hide primary button event
-        button_primary_show_hide.on_clicked(toggleShowHidePrimary)
+        # Explicitly set visibility for all groups
+        toggleVisibilityGroup(event, 'primary', primary_lines, set_visibility=not hide_flags['all'])
+        toggleVisibilityGroup(event, 'secondary', secondary_lines, set_visibility=not hide_flags['all'])
+        toggleVisibilityGroup(event, 'tertiary', tertiary_lines, set_visibility=not hide_flags['all'])
+        toggleVisibilityGroup(event, 'quaternary', quaternary_lines, set_visibility=not hide_flags['all'])
 
-        #----------------------------------------------- SECONDARY BUTTON -----------------------------------------------
+        fig.canvas.draw_idle()
 
-        # Create a button to show/hide secondary lines
-        secondary_show_hide_button = plt.axes([0.19, 0.01, 0.08, 0.05])  # Adjust the position to place it next to the show/hide all button
-        button_secondary_show_hide = Button(secondary_show_hide_button, 'Hide Secondary')
-        hide_secondary_lines = False
 
-        """
-        Button event.
-        Toggles the visibility of secondary plot lines and adjusts the transparency of the corresponding legend entries.
-        """
-        def toggleShowHideSecondary(event):
-            nonlocal hide_secondary_lines
-            if hide_secondary_lines:
-                # Now show secondary lines
-                for line in secondary_lines:
-                    line.set_visible(True)
-                    for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
-                        if lined[legline] == line:
-                            # Change transparency of line and text to visible
-                            legline.set_alpha(1.0)
-                            legtext.set_alpha(1.0)
-                button_secondary_show_hide.label.set_text('Hide Secondary')
-            else:
-                # Now hide secondary lines
-                for line in secondary_lines:
-                    line.set_visible(False)
-                    for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
-                        if lined[legline] == line:
-                            # Change transparency of line and text to barely visible
-                            legline.set_alpha(0.2)
-                            legtext.set_alpha(0.2)
-                button_secondary_show_hide.label.set_text('Show Secondary')
-            hide_secondary_lines = not hide_secondary_lines
-            fig.canvas.draw_idle()
+    # Create buttons and connect handlers.
+    button_positions = {
+        'all': [0.01, 0.01, 0.08, 0.05], 'primary': [0.10, 0.01, 0.08, 0.05],
+        'secondary': [0.19, 0.01, 0.08, 0.05], 'tertiary': [0.28, 0.01, 0.08, 0.05],
+        'quaternary': [0.37, 0.01, 0.08, 0.05]
+    }
 
-        # Connect show/hide secondary button event
-        button_secondary_show_hide.on_clicked(toggleShowHideSecondary)
+    # Map keys to the lines.
+    button_lines = {
+        'primary': primary_lines, 'secondary': secondary_lines,
+        'tertiary': tertiary_lines, 'quaternary': quaternary_lines
+    }
 
-        #----------------------------------------------- TERTIARY BUTTON -----------------------------------------------
+    for key, pos in button_positions.items():
+        ax_btn = fig.add_axes(pos)
+        # Initial label based on initial hide_flags state (False).
+        label = f"Hide {key.capitalize()}"
+        btn = Button(ax_btn, label)
+        button_refs[key] = btn # Store button ref.
+        if key == 'all':
+            btn.on_clicked(toggleShowHideAll)
+        else:
+            btn.on_clicked(lambda event, k=key, l=button_lines[key]: toggleVisibilityGroup(event, k, l))
 
-        # Create a button to show/hide tertiary lines
-        tertiary_show_hide_button = plt.axes([0.28, 0.01, 0.08, 0.05])  # Adjust the position to place it next to the show/hide all button
-        button_tertiary_show_hide = Button(tertiary_show_hide_button, 'Hide Tertiary')
-        hide_tertiary_lines = False
 
-        """
-        Button event.
-        Toggles the visibility of tertiary plot lines and adjusts the transparency of the corresponding legend entries.
-        """
-        def toggleShowHideTertiary(event):
-            nonlocal hide_tertiary_lines
-            if hide_tertiary_lines:
-                # Now show tertiary lines
-                for line in tertiary_lines:
-                    line.set_visible(True)
-                    for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
-                        if lined[legline] == line:
-                            # Change transparency of line and text to visible
-                            legline.set_alpha(1.0)
-                            legtext.set_alpha(1.0)
-                button_tertiary_show_hide.label.set_text('Hide Tertiary')
-            else:
-                # Now hide tertiary lines
-                for line in tertiary_lines:
-                    line.set_visible(False)
-                    for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
-                        if lined[legline] == line:
-                            # Change transparency of line and text to barely visible
-                            legline.set_alpha(0.2)
-                            legtext.set_alpha(0.2)
-                button_tertiary_show_hide.label.set_text('Show Tertiary')
-            hide_tertiary_lines = not hide_tertiary_lines
-            fig.canvas.draw_idle()
+    #----------------------------------------------- SHOW -----------------------------------------------
 
-        # Connect show/hide tertiary button event
-        button_tertiary_show_hide.on_clicked(toggleShowHideTertiary)
 
-        #----------------------------------------------- QUATERNARY BUTTON -----------------------------------------------
-
-        # Create a button to show/hide quaternary lines
-        quaternary_show_hide_button = plt.axes([0.37, 0.01, 0.08, 0.05])  # Adjust the position to place it next to the show/hide all button
-        button_quaternary_show_hide = Button(quaternary_show_hide_button, 'Hide Quaternary')
-        hide_quaternary_lines = False
-
-        """
-        Button event.
-        Toggles the visibility of quaternary plot lines and adjusts the transparency of the corresponding legend entries.
-        """
-        def toggleShowHideQuaternary(event):
-            nonlocal hide_quaternary_lines
-            if hide_quaternary_lines:
-                # Now show quaternary lines
-                for line in quaternary_lines:
-                    line.set_visible(True)
-                    for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
-                        if lined[legline] == line:
-                            # Change transparency of line and text to visible
-                            legline.set_alpha(1.0)
-                            legtext.set_alpha(1.0)
-                button_quaternary_show_hide.label.set_text('Hide Quaternary')
-            else:
-                # Now hide quaternary lines
-                for line in quaternary_lines:
-                    line.set_visible(False)
-                    for legline, legtext in zip(legend.get_lines(), legend.get_texts()):
-                        if lined[legline] == line:
-                            # Change transparency of line and text to barely visible
-                            legline.set_alpha(0.2)
-                            legtext.set_alpha(0.2)
-                button_quaternary_show_hide.label.set_text('Show Quaternary')
-            hide_quaternary_lines = not hide_quaternary_lines
-            fig.canvas.draw_idle()
-
-        # Connect show/hide quaternary button event
-        button_quaternary_show_hide.on_clicked(toggleShowHideQuaternary)
-
-        #----------------------------------------------- END -----------------------------------------------
+    try:
         plt.show()
+    except Exception as e:
+        print(f"Error displaying plot: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":
@@ -693,10 +598,4 @@ if __name__ == "__main__":
         sys.exit(1)
 
     filename = sys.argv[1]
-    try:
-        df = pd.read_csv(filename)
-    except Exception as e:
-        print(f"Error reading {filename}: {e}")
-        sys.exit(1)
-
-    Plotter.plotData(df, filename)
+    createPlot(filename)

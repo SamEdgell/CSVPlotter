@@ -1,2 +1,2 @@
 @echo off
-python "D:\plotter.py" "%1"
+python "%~dp0plotter.py" "%1"
